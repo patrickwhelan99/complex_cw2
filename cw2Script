@@ -1,0 +1,296 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+#setup database
+hdfs dfs -put "$DIR/*.csv" /user/cloudera/google-data/
+hive -f "$DIR/sql"
+
+
+# Get review scores by rating value
+function menuItemOne
+{
+	reviewScore=10
+	while true ; do # Grep var with regex; one char between 1 and 5 (inclusive)
+    		read -p "Review score to search for: " reviewScore
+	
+		if grep -e "^[1-5]$" <<< $reviewScore; then
+			break
+		else
+			echo -e "The entered value must be between 1 & 5 (inclusive)\n"
+		fi
+	done
+
+if $hive == true; then
+	num=$(hive -e "select count(*) from reviews where rating=$reviewScore" 2>/dev/null| grep -E "^[0-9]") #2> /dev/null
+else
+	num=$(echo 'var df = sqlContext.sql("select count(*) from reviews where rating='$reviewScore'"); df.show();exit;' | spark-shell 2>/dev/null | grep -oE "|[0-9]{1,}|" log | tail -n 1)
+fi
+
+echo -e "There are $num reviews with a rating of $reviewScore\n"
+}
+
+# Count number of places in each price bracket
+function menuItemTwo
+{
+if $hive == true; then
+	cheap="$(hive -e "select count(*) from places where price='\$'" )";
+	avg="$(hive -e "select count(*) from places where price='\$\$'" )";
+	exp="$(hive -e "select count(*) from places where price='\$\$\$'" )";
+
+	echo -e "Cheap places :\t$cheap"&
+	echo -e "Averagely priced places :\t$avg"&
+	echo -e "Expensive places :\t$exp"&
+
+	wait
+else
+
+	echo 'var df = sqlContext.sql("select count(*) from places where price='"'"'$'"'"'");val df2 = sqlContext.sql("select count(*) from places where price='"'"'$$'"'"'");val df3 = sqlContext.sql("select count(*) from places where price='"'"'$$$'"'"'");df.show();df2.show();df3.show();exit;' | spark-shell
+fi
+}
+# Get all users whose job is 'IT Specialist'
+function menuItemThree
+{
+	if $hive == true; then
+		hive -e "select * from users where jobs='IT Specialist'"
+	else
+		echo 'var df = sqlContext.sql("select * from users where jobs='"'"'IT Specialist'"'"'");df.show();exit;' | spark-shell
+	fi
+}
+# Get the 20 most common phrases in reviews, with a given rating
+function menuItemFour
+{
+	while true ; do # Grep var with regex; one char between 1 and 9 or two chars first 1 and second between 1 and 9; finally '$
+                read -p "Select a rating: " givenRating
+
+                if grep -e "^[1-5]$" <<< $givenRating; then
+                        break
+		else
+			echo -e "Please enter a value between 1 and 5 (inclusive)\n"
+		fi
+	done
+
+	java -jar req4.jar reviews.csv out/ $givenRating &>log
+	cat out/part-r-00000 | grep -E "^[0-9]{1,}\s" | sort -n -k1 -r | head -n 20
+}
+# Get all places with more than 3 reviews
+function menuItemFive
+{
+	if $hive == true; then
+		hive -e "select gplusplaceid, count(*) from reviews group by gplusplaceid having count(*)>3" #2> /dev/null
+	else
+		echo 'var df = sqlContext.sql("select gplusplaceid, count(*) from reviews group by gplusplaceid having count(*)>3");df.show();exit;' | spark-shell
+	fi
+}
+# Get all reviews from users with job 'IT Specialist'
+function menuItemSix
+{
+	if $hive == true; then
+		hive -e "select * from reviews where reviews.gplususerid in (select users.gplususerid from users where jobs='IT Specialist')" #2> /dev/null
+	else
+		echo 'var df = sqlContext.sql("select reviews.* from reviews left join users on reviews.gplususerid=users.gplususerid where users.jobs='"'"'IT Specialist'"'"' group by users.gplususerid, reviews.gplusplaceid, reviews.gplususerid, reviews.rating, reviews.reviewertext, reviews.reviewername, reviews.categories, reviews.reviewtime");df.show();exit;' | spark-shell
+	fi
+}
+# Get number of places permanently closed
+function menuItemSeven
+{
+	if $hive == true; then
+		echo -e "Number of places permanently closed: $(hive -e "select count(*) from places where closed=1")"
+	else
+		echo 'var df = sqlContext.sql("select count(*) from places where closed=1");df.show();exit;' | spark-shell
+	fi
+}
+# Reverse index of entered term
+function menuItemEight
+{
+	read -p "Enter your search term: " searchTerm
+	echo -e "Occurances of $searchTerm: \n$(hive -e "select gplusplaceid from reviews where reviewertext like '$searchTerm'")"
+}
+# Compute avg rating for each place category
+function menuItemNine
+{
+	if $hive == true; then
+		hive -e "select categories, avg(rating) from reviews group by categories" #2> /dev/null
+	else
+		echo 'var df = sqlContext.sql("select categories, avg(rating) from reviews group by categories");df.show();exit;' | spark-shell
+	fi
+}
+# Show the top 5 categories by avg rating
+function menuItemTen
+{
+	if $hive == true; then
+		hive -e "select categories, avg(rating) as T from reviews group by categories order by T desc limit 5" #2> /dev/null
+	else
+		echo 'var df = sqlContext.sql("select categories, avg(rating) as T from reviews group by categories order by T desc limit 5");df.show();exit;' | spark-shell
+	fi
+}
+# Compute number of open places in each price range
+function menuItemEleven
+{
+	if $hive == true; then
+		hive -e "select price, count(*) from places where places.closed=0 group by price" #2> /dev/null
+	else
+		echo 'var df = sqlContext.sql("select price, count(*) from places where places.closed=0 group by price");df.show();exit;' | spark-shell
+	fi
+}
+# Average rating of each price category
+function menuItemTwelve
+{
+	if $hive == true; then
+		hive -e "select places.price, avg(reviews.rating) from reviews left join places on reviews.gplusplaceid=places.gplusplaceid group by places.price" #2> /dev/null
+	else
+		echo 'var df = sqlContext.sql("select places.price, avg(reviews.rating) from reviews left join places on reviews.gplusplaceid=places.gplusplaceid group by places.price");df.show();exit;' | spark-shell
+	fi
+}
+# Count number of reviews for each price category
+function menuItemThirteen
+{
+	if $hive == true; then
+		hive -e "select places.price, count(reviews.rating) from reviews left join places on reviews.gplusplaceid=places.gplusplaceid group by places.price" #2> /dev/null
+	else
+		echo 'var df = sqlContext.sql("select places.price, count(reviews.rating) from reviews left join places on reviews.gplusplaceid=places.gplusplaceid group by places.price");df.show();exit;' | spark-shell
+	fi
+}
+# Get average review length for each rating category
+function menuItemFourteen
+{
+	if $hive == true; then
+		hive -e "select reviews.rating, avg(length(reviews.reviewertext)) from reviews group by reviews.rating" #2> /dev/null
+	else
+		echo 'var df = sqlContext.sql("select reviews.rating, avg(length(reviews.reviewertext)) from reviews group by reviews.rating");df.show();exit;' | spark-shell
+	fi
+}
+# Display the place with the most reviews
+function menuItemFifteen
+{
+	if $hive == true; then
+		hive -e "select count(reviews.rating) as T, places.gplusplaceid, places.name from places right join reviews on places.gplusplaceid=reviews.gplusplaceid where places.name!='NULL' group by places.gplusplaceid, places.name order by T desc limit 1" #2> /dev/null
+	else
+		echo 'var df = sqlContext.sql("select count(reviews.rating) as T, places.gplusplaceid, places.name from places right join reviews on places.gplusplaceid=reviews.gplusplaceid where places.name!='"'"'NULL'"'"' group by places.gplusplaceid, places.name order by T desc limit 1");df.show();exit;' | spark-shell
+	fi
+}
+
+
+
+
+function printMenu 
+{ 
+	echo -e "Main menu\n
+		1) Get review scores by rating value\n
+		2) Count number of places in each price bracket\n
+		3) Get all users whose job is 'IT Specialist'\n
+		4) Unimplemented\n
+		5) Get all places with more than 3 reviews\n
+		6) Get all reviews from users with job 'IT Specialist'\n
+		7) Get number of places permanently closed\n
+		8) Reverse index of entered term\n
+		9) Compute avg rating for each place category\n
+		10) Show the top 5 categories by avg rating\n
+		11) Compute number of open places in each price range\n
+		12) Compute the average rating of each price category\n
+		13) Count number of reviews for each price category\n
+		14) Get average review length for each rating category\n
+		15) Display the place with the most reviews\n
+		
+		q) Quit
+"
+
+}
+
+function printUsage { echo -e "Please enter a listed value to select a menu function";}
+
+
+hive=true
+
+# Main loop
+while true; do
+
+	printMenu
+	if $hive == true; then
+		echo -e "Current mode is hive\n\n"
+	else
+		echo -e "Current mode is spark\n\n"
+	fi
+
+	while true ; do # Grep var with regex; one char between 1 and 9 or two chars first 1 and second between 1 and 9; finally 'q' can be entered to quit
+	    	read -p "Selection: " selection
+		
+		if grep -e "^[1-9]$" <<< $selection || grep -e "^1[0-5]$" <<< $selection || grep -e "^q$" <<< $selection || grep -e "^h$" <<< $selection || grep -e "^s$" <<< $selection; then
+			break
+		else
+			printUsage
+		fi
+	done
+
+
+	case "$selection" in
+	
+		1)
+			menuItemOne
+			;;
+		2)
+			menuItemTwo
+			;;
+		3)
+			menuItemThree
+			;;
+		4)
+			menuItemFour
+			;;
+		5)
+			menuItemFive
+			;;
+		6)
+			menuItemSix
+			;;
+		7)
+			menuItemSeven
+			;;
+		8)
+			menuItemEight
+			;;
+		9)
+			menuItemNine
+			;;
+		10)
+			menuItemTen
+			;;
+		11)
+			menuItemEleven
+			;;
+		12)
+			menuItemTwelve
+			;;
+		13)
+			menuItemThirteen
+			;;
+		14)
+			menuItemFourteen
+			;;
+		15)
+			menuItemFifteen
+			;;
+		h)
+			echo -e "Setting mode to hive"
+			hive=true
+			;;
+		s)
+			echo -e "Setting mode to spark"
+			hive=false
+			;;
+		q)
+			echo -e "Goodbye!\n"
+			exit 0
+			;;
+		*)
+			printUsage
+			;;
+	esac
+
+echo -e "\n\n\n\n"
+
+read -s -n 1 -p "Press any key to return to the menu..."
+
+echo -e "\n\n\n\n"
+
+done
