@@ -3,7 +3,9 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 #setup database
-hdfs dfs -put "$DIR/*.csv" /user/cloudera/google-data/
+hdfs dfs -put "$DIR/places.csv" /user/cloudera/google-data/
+hdfs dfs -put "$DIR/reviews.csv" /user/cloudera/google-data/
+hdfs dfs -put "$DIR/users.csv" /user/cloudera/google-data/
 hive -f "$DIR/sql"
 
 
@@ -13,7 +15,7 @@ function menuItemOne
 	reviewScore=10
 	while true ; do # Grep var with regex; one char between 1 and 5 (inclusive)
     		read -p "Review score to search for: " reviewScore
-	
+
 		if grep -e "^[1-5]$" <<< $reviewScore; then
 			break
 		else
