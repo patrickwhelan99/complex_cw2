@@ -175,13 +175,13 @@ function menuItemFifteen
 
 
 
-function printMenu 
-{ 
+function printMenu
+{
 	echo -e "Main menu\n
 		1) Get review scores by rating value\n
 		2) Count number of places in each price bracket\n
 		3) Get all users whose job is 'IT Specialist'\n
-		4) Unimplemented\n
+		4) Get the 20 most common phrases in reviews, with a given rating\n
 		5) Get all places with more than 3 reviews\n
 		6) Get all reviews from users with job 'IT Specialist'\n
 		7) Get number of places permanently closed\n
@@ -193,7 +193,10 @@ function printMenu
 		13) Count number of reviews for each price category\n
 		14) Get average review length for each rating category\n
 		15) Display the place with the most reviews\n
-		
+
+		s) Use spark for queries
+		h) Use hive for queries
+
 		q) Quit
 "
 
@@ -216,7 +219,7 @@ while true; do
 
 	while true ; do # Grep var with regex; one char between 1 and 9 or two chars first 1 and second between 1 and 9; finally 'q' can be entered to quit
 	    	read -p "Selection: " selection
-		
+
 		if grep -e "^[1-9]$" <<< $selection || grep -e "^1[0-5]$" <<< $selection || grep -e "^q$" <<< $selection || grep -e "^h$" <<< $selection || grep -e "^s$" <<< $selection; then
 			break
 		else
@@ -226,7 +229,7 @@ while true; do
 
 
 	case "$selection" in
-	
+
 		1)
 			menuItemOne
 			;;
